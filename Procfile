@@ -1,1 +1,1 @@
-worker: python hodor.py
+web: python hodor.py
