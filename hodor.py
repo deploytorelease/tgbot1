@@ -15,7 +15,7 @@ from telegram.ext import (
 
 # Инициализация
 TOKEN = os.environ["TOKEN"]
-NAME, JOIN_OR_CREATE, DOOR_ACTION, STATS_CHOICE = range(4)
+NAME, JOIN_OR_CREATE = range(2)
 
 # Создание базы данных
 def create_database():
@@ -53,10 +53,13 @@ def start(update: Update, _: CallbackContext):
 def name(update: Update, context: CallbackContext):
     name = update.message.text
     context.user_data["name"] = name
-    reply_keyboard = [["Создать новую квартиру"], ["Присоединиться к квартире"]]
+    reply_keyboard = [
+        [InlineKeyboardButton("Создать новую квартиру", callback_data="create_property")],
+        [InlineKeyboardButton("Присоединиться к квартире", callback_data="join_property")],
+    ]
     update.message.reply_text(
         "Выберите действие:",
-        reply_markup=InlineKeyboardMarkup.from_button(reply_keyboard),
+        reply_markup=InlineKeyboardMarkup(reply_keyboard),
     )
     return JOIN_OR_CREATE
 
@@ -119,6 +122,21 @@ def door_action(update: Update, _: CallbackContext):
         reply_markup=InlineKeyboardMarkup(reply_keyboard),
     )
     return DOOR_ACTION
+
+def join_or_create(update: Update, context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+
+    if query.data == "create_property":
+        # Реализуйте логику для создания новой квартиры
+        pass
+    elif query.data == "join_property":
+        # Реализуйте логику для присоединения к квартире
+        pass
+
+    return ConversationHandler.END
+
+
 
 def button_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -209,22 +227,14 @@ def main():
     dp = updater.dispatcher
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            NAME: [MessageHandler(Filters.text, name)],
-            JOIN_OR_CREATE: [
-                MessageHandler(Filters.regex("^Создать новую квартиру$"), create_flat),
-                MessageHandler(Filters.regex("^Присоединиться к квартире$"), join_flat),
-                MessageHandler(Filters.text, process_flat_id),
-            ],
-            DOOR_ACTION: [
-                MessageHandler(Filters.text, door_action),
-                CallbackQueryHandler(button_callback),
-                CallbackQueryHandler(show_stats, pattern="^(total|week|month)$"),
-            ],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
+    entry_points=[CommandHandler("start", start)],
+    states={
+        NAME: [MessageHandler(Filters.text & ~Filters.command, name)],
+        JOIN_OR_CREATE: [CallbackQueryHandler(join_or_create)],
+    },
+    fallbacks=[CommandHandler("cancel", cancel)],
+)
+
 
     dp.add_handler(conv_handler)
 
