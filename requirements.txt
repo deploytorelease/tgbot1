@@ -1,1 +1,1 @@
-worker: python hodor.py
+python-telegram-bot

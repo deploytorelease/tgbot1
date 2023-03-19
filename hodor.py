@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 
 # Инициализация
-TOKEN = "6006523726:AAEFSvnANTq06oNq9VKIzKSRu-vq609c-KM"
+TOKEN = os.environ["TOKEN"]
 NAME, JOIN_OR_CREATE, DOOR_ACTION, STATS_CHOICE = range(4)
 
 # Создание базы данных
