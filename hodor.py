@@ -234,9 +234,9 @@ def main():
     states={
         NAME: [MessageHandler(Filters.text & ~Filters.command, name)],
         DOOR_ACTION: [
-            CallbackQueryHandler(join_or_create, per_message=True),
-            CallbackQueryHandler(button_callback, per_message=True),
-            CallbackQueryHandler(show_stats, per_message=True),
+            CallbackQueryHandler(join_or_create),
+            CallbackQueryHandler(button_callback),
+            CallbackQueryHandler(show_stats),
         ],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
