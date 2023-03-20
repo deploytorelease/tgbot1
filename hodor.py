@@ -15,7 +15,7 @@ from telegram.ext import (
 
 # Инициализация
 TOKEN = os.environ["TOKEN"]
-NAME, JOIN_OR_CREATE = range(2)
+NAME, JOIN_OR_CREATE, CHANGE_NAME, DOOR_ACTION = range(4)
 
 # Создание базы данных
 def create_database():
@@ -61,7 +61,7 @@ def name(update: Update, context: CallbackContext):
         "Выберите действие:",
         reply_markup=InlineKeyboardMarkup(reply_keyboard),
     )
-    return JOIN_OR_CREATE
+    return DOOR_ACTION
 
 def create_flat(update: Update, context: CallbackContext):
     conn = sqlite3.connect("flats.db")
@@ -81,7 +81,7 @@ def create_flat(update: Update, context: CallbackContext):
     conn.close()
 
     update.message.reply_text(f"Квартира создана. ID квартиры: {flat_id}")
-    return DOOR_ACTION
+    return JOIN_OR_CREATE
 
 def join_flat(update: Update, context: CallbackContext):
     update.message.reply_text("Введите ID квартиры, к которой хотите присоединиться:")
@@ -116,6 +116,7 @@ def door_action(update: Update, _: CallbackContext):
         [InlineKeyboardButton("Я открою", callback_data="open")],
         [InlineKeyboardButton("Я открыл", callback_data="opened")],
         [InlineKeyboardButton("Статистика", callback_data="stats")],
+        [InlineKeyboardButton("Изменить имя", callback_data="change_name")],  # Добавьте эту строку
     ]
     update.message.reply_text(
         "Выберите действие:",
@@ -181,6 +182,9 @@ def button_callback(update: Update, context: CallbackContext):
             "Выберите период для статистики:",
             reply_markup=InlineKeyboardMarkup(reply_keyboard),
         )
+    elif query.data == "change_name":  # Добавьте эту строку
+        query.edit_message_text("Введите ваше новое имя:")
+        return CHANGE_NAME  # Добавьте эту строку
     return DOOR_ACTION
 
 def show_stats(update: Update, context: CallbackContext):
