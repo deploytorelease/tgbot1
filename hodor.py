@@ -128,13 +128,12 @@ def join_or_create(update: Update, context: CallbackContext):
     query.answer()
 
     if query.data == "create_property":
-        # Реализуйте логику для создания новой квартиры
-        pass
+        return create_flat(update, context)
     elif query.data == "join_property":
-        # Реализуйте логику для присоединения к квартире
-        pass
+        return join_flat(update, context)
 
     return ConversationHandler.END
+
 
 
 
@@ -230,7 +229,11 @@ def main():
     entry_points=[CommandHandler("start", start)],
     states={
         NAME: [MessageHandler(Filters.text & ~Filters.command, name)],
-        JOIN_OR_CREATE: [CallbackQueryHandler(join_or_create)],
+        DOOR_ACTION: [
+            CallbackQueryHandler(join_or_create, per_message=True),
+            CallbackQueryHandler(button_callback, per_message=True),
+            CallbackQueryHandler(show_stats, per_message=True),
+        ],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
 )
