@@ -14,7 +14,7 @@ from telegram.ext import (
 
 # Инициализация
 TOKEN = os.environ["TOKEN"]
-NAME, JOIN_OR_CREATE, CHANGE_NAME, DOOR_ACTION, CREATE_FLAT = range(5)
+NAME, JOIN_OR_CREATE, CHANGE_NAME, DOOR_ACTION, CREATE_FLAT, JOIN_FLAT = range(6)
 
 # Создание базы данных
 def create_database():
