@@ -2,7 +2,6 @@ import logging
 import random
 import string
 import os
-from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Updater,
