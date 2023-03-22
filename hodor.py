@@ -1,6 +1,8 @@
+import logging
+import random
+import string
 import os
-import sqlite3
-from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Updater,
@@ -12,262 +14,138 @@ from telegram.ext import (
     ConversationHandler,
 )
 
-# Инициализация
 TOKEN = os.environ["TOKEN"]
-NAME, JOIN_OR_CREATE, CHANGE_NAME, DOOR_ACTION, CREATE_FLAT, JOIN_FLAT = range(6)
 
-# Создание базы данных
-def create_database():
-    conn = sqlite3.connect("flats.db")
-    cursor = conn.cursor()
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-    cursor.execute(
-        """CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            user_id INTEGER,
-            name TEXT,
-            flat_id INTEGER,
-            door_opened INTEGER,
-            last_opened TIMESTAMP
-        )"""
-    )
+# Состояния для ConversationHandler
+CREATING, JOINING, IN_FLAT = range(3)
 
-    cursor.execute(
-        """CREATE TABLE IF NOT EXISTS flats (
-            id INTEGER PRIMARY KEY,
-            flat_id INTEGER
-        )"""
-    )
+# Хранение квартир и их участников
+flats = {}
 
-    conn.commit()
-    conn.close()
+def generate_flat_id() -> str:
+    while True:
+        flat_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        if flat_id not in flats:
+            return flat_id
 
-# Команды
-def start(update: Update, _: CallbackContext):
-    update.message.reply_text(
-        "Привет! Пожалуйста, введите ваше имя:"
-    )
-    return NAME
+def start(update: Update, context: CallbackContext) -> int:
+    user_id = update.effective_user.id
+    if any(user_id in flat for flat in flats.values()):
+        update.message.reply_text("Вы уже находитесь в квартире.")
+        return IN_FLAT
 
-def name(update: Update, context: CallbackContext):
-    name = update.message.text
-    context.user_data["name"] = name
-    reply_keyboard = [
-        [InlineKeyboardButton("Создать новую квартиру", callback_data="create_property")],
-        [InlineKeyboardButton("Присоединиться к квартире", callback_data="join_property")],
+    keyboard = [
+        [InlineKeyboardButton("Создать квартиру", callback_data="create_flat")],
+        [InlineKeyboardButton("Присоединиться к квартире", callback_data="join_flat")],
     ]
-    update.message.reply_text(
-        "Выберите действие:",
-        reply_markup=InlineKeyboardMarkup(reply_keyboard),
-    )
-    return DOOR_ACTION
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text("Выберите действие:", reply_markup=reply_markup)
 
-def create_flat(update: Update, context: CallbackContext):
-    conn = sqlite3.connect("flats.db")
-    cursor = conn.cursor()
+    return CREATING
 
-    cursor.execute("INSERT INTO flats (flat_id) VALUES (NULL)")
-    conn.commit()
-    flat_id = cursor.lastrowid
-
-    context.user_data["flat_id"] = flat_id
-
-    cursor.execute(
-        "INSERT INTO users (user_id, name, flat_id, door_opened, last_opened) VALUES (?, ?, ?, 0, ?)",
-        (update.effective_chat.id, context.user_data["name"], flat_id, datetime.now()),
-    )
-    conn.commit()
-    conn.close()
-
-    update.callback_query.message.reply_text(f"Квартира создана. ID квартиры: {flat_id}")
-    return JOIN_OR_CREATE
-
-def join_flat(update: Update, context: CallbackContext):
-    update.callback_query.message.reply_text("Введите ID квартиры, к которой хотите присоединиться:")
-    return JOIN_OR_CREATE
-
-def process_flat_id(update: Update, context: CallbackContext):
-    flat_id = int(update.message.text)
-
-    conn = sqlite3.connect("flats.db")
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT flat_id FROM flats WHERE flat_id=?", (flat_id,))
-    flat = cursor.fetchone()
-
-    if flat:
-        context.user_data["flat_id"] = flat_id
-
-        cursor.execute(
-            "INSERT INTO users (user_id, name, flat_id, door_opened, last_opened) VALUES (?, ?, ?, 0, ?)",
-            (update.effective_chat.id, context.user_data["name"], flat_id, datetime.now()),
-        )
-        conn.commit()
-        conn.close()
-        update.message.reply_text(f"Вы присоединились к квартире с ID: {flat_id}")
-        return DOOR_ACTION
-    else:
-        update.message.reply_text("Квартира с таким ID не найдена. Попробуйте еще раз:")
-        return JOIN_OR_CREATE
-
-def door_action(update: Update, _: CallbackContext):
-    reply_keyboard = [
-        [InlineKeyboardButton("Я открою", callback_data="open")],
-        [InlineKeyboardButton("Я открыл", callback_data="opened")],
-        [InlineKeyboardButton("Статистика", callback_data="stats")],
-        [InlineKeyboardButton("Изменить имя", callback_data="change_name")],  # Добавьте эту строку
-    ]
-    update.message.reply_text(
-        "Выберите действие:",
-        reply_markup=InlineKeyboardMarkup(reply_keyboard),
-    )
-    return DOOR_ACTION
-
-def join_or_create(update: Update, context: CallbackContext):
+def create_flat(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
     query.answer()
 
-    if query.data == "create_property":
-        return create_flat(update, context)
-    elif query.data == "join_property":
-        return join_flat(update, context)
+    user_id = query.from_user.id
+    flat_id = generate_flat_id()
+    flats[flat_id] = [user_id]
 
-    return ConversationHandler.END
-
-
+    query.edit_message_text(f"Квартира создана. ID квартиры: {flat_id}")
+    return IN_FLAT
 
 
-def button_callback(update: Update, context: CallbackContext):
+def join_flat(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
     query.answer()
-    conn = sqlite3.connect("flats.db")
-    cursor = conn.cursor()
 
-    if query.data == "open":
-        user = cursor.execute(
-            "SELECT name FROM users WHERE user_id=?",
-            (update.effective_chat.id,),
-        ).fetchone()
-        name = user[0] if user else "Неизвестный"
+    query.edit_message_text("Введите ID квартиры, к которой хотите присоединиться:")
 
-        flat_id = context.user_data["flat_id"]
+    return JOINING
 
-        users_in_flat = cursor.execute(
-            "SELECT user_id FROM users WHERE flat_id=?", (flat_id,)
-        ).fetchall()
 
-        for user_id in users_in_flat:
-            if user_id[0] != update.effective_chat.id:
-                context.bot.send_message(
-                    user_id[0],
-                    f"Пользователь {name} собирается открыть дверь.",
-                )
+def process_flat_id(update: Update, context: CallbackContext) -> int:
+    user_id = update.effective_user.id
+    flat_id = update.message.text.strip()
 
-        query.edit_message_text("Вы сообщили о своем намерении открыть дверь.")
-    elif query.data == "opened":
-        cursor.execute(
-            "UPDATE users SET door_opened = door_opened + 1, last_opened = ? WHERE user_id=?",
-            (datetime.now(), update.effective_chat.id),
-        )
-        conn.commit()
-        query.edit_message_text("Вы успешно открыли дверь.")
-    elif query.data == "stats":
-        reply_keyboard = [
-            [InlineKeyboardButton("Всего", callback_data="total")],
-            [InlineKeyboardButton("За неделю", callback_data="week")],
-            [InlineKeyboardButton("За месяц", callback_data="month")],
-        ]
-        query.edit_message_text(
-            "Выберите период для статистики:",
-            reply_markup=InlineKeyboardMarkup(reply_keyboard),
-        )
-    elif query.data == "change_name":  # Добавьте эту строку
-        query.edit_message_text("Введите ваше новое имя:")
-        return CHANGE_NAME  # Добавьте эту строку
-    return DOOR_ACTION
+    if flat_id not in flats:
+        update.message.reply_text("Квартира с таким ID не найдена. Попробуйте еще раз.")
+        return JOINING
 
-def show_stats(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
-    period = query.data
+    flats[flat_id].append(user_id)
+    update.message.reply_text(f"Вы присоединились к квартире {flat_id}")
 
-    if period == "total":
-        time_condition = ""
-    elif period == "week":
-        time_condition = "AND last_opened >= ?"
-        time_param = (datetime.now() - timedelta(days=7),)
-    elif period == "month":
-        time_condition = "AND last_opened >= ?"
-        time_param = (datetime.now() - timedelta(days=30),)
+    return IN_FLAT
 
-    conn = sqlite3.connect("flats.db")
-    cursor = conn.cursor()
+def open_door(update: Update, context: CallbackContext) -> int:
+    user_id = update.effective_user.id
+    user_data = context.user_data
 
-    flat_id = context.user_data["flat_id"]
+    if 'opened_doors' not in user_data:
+        user_data['opened_doors'] = 0
 
-    users = cursor.execute(
-        f"SELECT name, door_opened FROM users WHERE flat_id=? {time_condition}",
-        (flat_id,) + (time_param if time_condition else ()),    ).fetchall()
-    conn.close()
+    user_data['opened_doors'] += 1
 
-    if users:
-        stats = "\n".join([f"{user[0]}: {user[1]} раз" for user in users])
-        query.edit_message_text(f"Статистика открытия двери:\n{stats}")
-    else:
-        query.edit_message_text("Нет данных для выбранного периода.")
+    update.message.reply_text(f"Вы открыли дверь {user_data['opened_doors']} раз(а).")
 
-    return DOOR_ACTION
+    return IN_FLAT
 
-def cancel(update: Update, _: CallbackContext):
-    update.message.reply_text("До свидания!")
-    return ConversationHandler.END
 
-def change_name(update: Update, context: CallbackContext):
-    new_name = update.message.text
-    conn = sqlite3.connect("flats.db")
-    cursor = conn.cursor()
+def change_name(update: Update, context: CallbackContext) -> int:
+    new_name = update.message.text.strip()
+    user_data = context.user_data
 
-    cursor.execute(
-        "UPDATE users SET name=? WHERE user_id=?",
-        (new_name, update.effective_chat.id),
-    )
-    conn.commit()
-    conn.close()
+    user_data['name'] = new_name
+    update.message.reply_text(f"Ваше имя изменено на {new_name}")
 
-    update.message.reply_text(f"Ваше имя было изменено на: {new_name}")
-    return DOOR_ACTION
+    return IN_FLAT
 
+def show_stats(update: Update, context: CallbackContext) -> int:
+    user_id = update.effective_user.id
+    user_data = context.user_data
+
+    opened_doors = user_data.get('opened_doors', 0)
+    update.message.reply_text(f"Вы открыли дверь {opened_doors} раз(а).")
+
+    return IN_FLAT
+
+
+def show_logs(update: Update, context: CallbackContext) -> int:
+    # Здесь вы можете реализовать вывод логов в зависимости от ваших потребностей.
+    update.message.reply_text("Просмотр логов еще не реализован.")
+    return IN_FLAT
 
 def main():
-    create_database()
-    updater = Updater(TOKEN, use_context=True)
+    updater = Updater(TOKEN)
 
     dp = updater.dispatcher
 
+    dp.add_handler(CommandHandler("start", start))
+
     conv_handler = ConversationHandler(
-    entry_points=[CommandHandler('start', start)],
-    states={
-        JOIN_OR_CREATE: [
-            CallbackQueryHandler(join_or_create, pattern='^(join_property|create_property)$'),
-        ],
-        CREATE_FLAT: [
-            MessageHandler(Filters.text & ~Filters.command, create_flat)
-        ],
-        JOIN_FLAT: [
-            MessageHandler(Filters.text & ~Filters.command, join_flat)
-        ],
-        # Добавьте здесь другие состояния, если они нужны
-    },
-    fallbacks=[CommandHandler('cancel', cancel)],
-)
-
-
+        entry_points=[CommandHandler("start", start)],
+        states={
+            SELECTING_ACTION: [
+                CallbackQueryHandler(create_flat, pattern="^create_flat$"),
+                CallbackQueryHandler(join_flat, pattern="^join_flat$"),
+                MessageHandler(Filters.text & ~Filters.command, process_flat_id),
+            ],
+            IN_FLAT: [
+                CommandHandler("opendoor", open_door),
+                CommandHandler("changename", change_name),
+                CommandHandler("stats", show_stats),
+                CommandHandler("logs", show_logs),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
 
     dp.add_handler(conv_handler)
 
     updater.start_polling()
-
     updater.idle()
-
-if __name__ == "__main__":
-    main()
