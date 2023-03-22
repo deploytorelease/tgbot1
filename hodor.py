@@ -80,11 +80,11 @@ def create_flat(update: Update, context: CallbackContext):
     conn.commit()
     conn.close()
 
-    update.message.reply_text(f"Квартира создана. ID квартиры: {flat_id}")
+    update.callback_query.message.reply_text(f"Квартира создана. ID квартиры: {flat_id}")
     return JOIN_OR_CREATE
 
 def join_flat(update: Update, context: CallbackContext):
-    update.message.reply_text("Введите ID квартиры, к которой хотите присоединиться:")
+    update.callback_query.message.reply_text("Введите ID квартиры, к которой хотите присоединиться:")
     return JOIN_OR_CREATE
 
 def process_flat_id(update: Update, context: CallbackContext):
