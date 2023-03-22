@@ -2,7 +2,6 @@ import os
 import sqlite3
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Filters
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -223,6 +222,22 @@ def cancel(update: Update, _: CallbackContext):
     update.message.reply_text("До свидания!")
     return ConversationHandler.END
 
+def change_name(update: Update, context: CallbackContext):
+    new_name = update.message.text
+    conn = sqlite3.connect("flats.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE users SET name=? WHERE user_id=?",
+        (new_name, update.effective_chat.id),
+    )
+    conn.commit()
+    conn.close()
+
+    update.message.reply_text(f"Ваше имя было изменено на: {new_name}")
+    return DOOR_ACTION
+
+
 def main():
     create_database()
     updater = Updater(TOKEN, use_context=True)
@@ -238,6 +253,7 @@ def main():
             CallbackQueryHandler(button_callback),
             CallbackQueryHandler(show_stats),
         ],
+        CHANGE_NAME: [MessageHandler(Filters.text & ~Filters.command, change_name)],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
 )
