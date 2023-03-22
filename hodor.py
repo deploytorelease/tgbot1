@@ -75,7 +75,7 @@ def create_flat(update: Update, context: CallbackContext):
 
     cursor.execute(
         "INSERT INTO users (user_id, name, flat_id, door_opened, last_opened) VALUES (?, ?, ?, 0, ?)",
-        (update.message.chat_id, context.user_data["name"], flat_id, datetime.now()),
+        (update.effective_chat.id, context.user_data["name"], flat_id, datetime.now()),
     )
     conn.commit()
     conn.close()
@@ -101,7 +101,7 @@ def process_flat_id(update: Update, context: CallbackContext):
 
         cursor.execute(
             "INSERT INTO users (user_id, name, flat_id, door_opened, last_opened) VALUES (?, ?, ?, 0, ?)",
-            (update.message.chat_id, context.user_data["name"], flat_id, datetime.now()),
+            (update.effective_chat.id, context.user_data["name"], flat_id, datetime.now()),
         )
         conn.commit()
         conn.close()
