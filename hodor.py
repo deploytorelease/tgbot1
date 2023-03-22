@@ -245,18 +245,22 @@ def main():
     dp = updater.dispatcher
 
     conv_handler = ConversationHandler(
-    entry_points=[CommandHandler("start", start)],
+    entry_points=[CommandHandler('start', start)],
     states={
-        NAME: [MessageHandler(Filters.text & ~Filters.command, name)],
-        DOOR_ACTION: [
-            CallbackQueryHandler(join_or_create),
-            CallbackQueryHandler(button_callback),
-            CallbackQueryHandler(show_stats),
+        JOIN_OR_CREATE: [
+            CallbackQueryHandler(join_or_create, pattern='^(join_property|create_property)$'),
         ],
-        CHANGE_NAME: [MessageHandler(Filters.text & ~Filters.command, change_name)],
+        CREATE_FLAT: [
+            MessageHandler(Filters.text & ~Filters.command, create_flat)
+        ],
+        JOIN_FLAT: [
+            MessageHandler(Filters.text & ~Filters.command, join_flat)
+        ],
+        # Добавьте здесь другие состояния, если они нужны
     },
-    fallbacks=[CommandHandler("cancel", cancel)],
+    fallbacks=[CommandHandler('cancel', cancel)],
 )
+
 
 
     dp.add_handler(conv_handler)
